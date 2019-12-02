@@ -6,43 +6,28 @@ static char names[1024][20000];
 static int counts[20000];
 static int sortCounts[20000];
 
-char *strxtok(char *buffer, char *match)
+char * strtok_single (char * str, char const * delims)
 {
-    static char *next_token = NULL;
-    char *cp, *cp2, c, *rv;
-    if (buffer)
-        next_token = buffer;
-    if (next_token && (*next_token == '\0'))
-        return (NULL);
-    cp = next_token;
-    while (1)
-    {
-        c = *cp;
-        if (c == '\0')
-            return (NULL);
-        for (cp2 = match; *cp2; cp2++)
-            if (c == *cp2)
-                break;
-        if (*cp2 == 0)
-            break;
-        cp++;
-    }
-    next_token = cp;
-    for (cp = next_token; *cp; cp++)
-    {
-        c = *cp;
-        for (cp2 = match; *cp2; cp2++)
-            if (c == *cp2)
-            {
-                *cp = '\0';
-                rv = next_token;
-                next_token = cp + 1;
-                return (rv);
-            }
-    }
-    rv = next_token;
-    next_token = cp;
-    return (rv);
+  static char  * src = NULL;
+  char  *  p,  * ret = 0;
+
+  if (str != NULL)
+    src = str;
+
+  if (src == NULL)
+    return NULL;
+
+  if ((p = strpbrk (src, delims)) != NULL) {
+    *p  = 0;
+    ret = src;
+    src = ++p;
+
+  } else if (*src) {
+    ret = src;
+    src = NULL;
+  }
+
+  return ret;
 }
 
 int name_index(char *name)
@@ -61,8 +46,9 @@ int name_index(char *name)
     return -1;
 }
 
-int count_index(int count)
+int count_index(int count, int dup)
 {
+    int times = 0;
     for (int i = 0; i < 20000; i++)
     {
         if (counts[i] == 0)
@@ -71,7 +57,10 @@ int count_index(int count)
         }
         if (counts[i] == count)
         {
+          if(times == dup) {
             return i;
+          }
+          times++;
         }
     }
     return -1;
@@ -97,7 +86,8 @@ void sort()
 int main(int argc, char *argv[])
 {
     if (argc != 2)
-    {
+    { //didn't recieve a csv file as arg
+        printf("No arg\n");
         printf("Invalid Input Format\n");
         exit(0);
     }
@@ -109,24 +99,26 @@ int main(int argc, char *argv[])
     int colNum = 0;
     int nameCount = 0;
     if ((fp = fopen(argv[1], "r")) != NULL)
-    {
+    { //open cvs for reading
         int j = 0;
         for (int i = 0; i < 20000; i++)
-        {
+        { //initialize count array
             counts[i] = 0;
         }
 
-        if ((line = fgets(buffer, sizeof(buffer), fp)) != NULL)
+        if ((line = fgets(buffer, sizeof(buffer), fp)) != NULL) //get header line
         {
-            record = strxtok(line, ",");
+            //printf("%s\n", line);
+            record = strtok_single(line, ","); //get first token deliminated by commas
 
             while (record != NULL)
             {
                 if (strcmp(record, "name") == 0)
                 {
                     nameCol = j;
+                    //printf("%d\n", nameCol);
                 }
-                record = strxtok(NULL, ",");
+                record = strtok_single(NULL, ","); //get next token
                 j++;
             }
             colNum = j;
@@ -135,40 +127,52 @@ int main(int argc, char *argv[])
 
         if (nameCol == -1)
         {
+          //couldn't find name in header
+            printf("No name\n");
             printf("Invalid Input Format\n");
             exit(0);
         }
 
         while ((line = fgets(buffer, sizeof(buffer), fp)) != NULL)
         {
-            record = strxtok(line, ",");
+            record = strtok_single(line, ","); //get first column of csv
+
             while (record != NULL)
             {
-                if (j == nameCol)
+              printf("%d %s\n", j, record);
+                if (j == nameCol) //at name col
                 {
-                    int index = name_index(record);
+                    int index = name_index(record); //find index for name in record
                     if (index == -1)
                     {
-                        strcpy(names[nameCount], record);
+                      printf("%d\n", nameCount);
+                      if(nameCount >= 20000) {
+                        printf("Invalid Input Format\n");
+                        exit(0);
+                      }
+                      
+                        strcpy(names[nameCount], record); //add new name record
                         counts[nameCount] = 1;
                         nameCount++;
                     }
                     else
                     {
-                        counts[index]++;
+                        counts[index]++; //found existing name, increase count
                     }
                 }
-                record = strxtok(NULL, ",");
+                record = strtok_single(NULL, ","); //get next column
                 j++;
             }
 
             if (colNum != j)
-            {
+            { //column number doesn't match header
+                printf("col doesn't match\n");
                 printf("Invalid Input Format\n");
                 exit(0);
             }
             j = 0;
         }
+        //close file
         fclose(fp);
         fp = NULL;
         for (int i = 0; i < 20000; i++)
@@ -177,17 +181,27 @@ int main(int argc, char *argv[])
         }
 
         sort();
-
-        for (int i = 0; i < 10; i++)
+        int dup = 0;
+        int count = sortCounts[0];
+        int index = count_index(count, 0);
+        printf("%s: %d\n", names[index], count);
+        for (int i = 1; i < 10; i++)
         {
-            int count = sortCounts[i];
+            count = sortCounts[i];
+            if(count == sortCounts[i - 1]) {
+              dup ++;
+            } else {
+              dup = 0;
+            }
             if (count == 0)
                 break;
-            int index = count_index(count);
+            index = count_index(count, dup);
             printf("%s: %d\n", names[index], count);
         }
         return 1;
     }
+    //couldn't open csv file
+    printf("couldn't open csv\n");
     printf("Invalid Input Format\n");
     return 0;
 }
