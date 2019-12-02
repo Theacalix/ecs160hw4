@@ -1,8 +1,0 @@
-compile: 
-    gcc -c maxTweeter.c
-    
-build:
-    gcc -o maxTweeter maxTweeter.o
-
-run:
-    ./maxTweeter xxx.csv
